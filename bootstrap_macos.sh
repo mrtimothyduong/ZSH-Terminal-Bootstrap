@@ -1,5 +1,5 @@
 #!/bin/bash
-# bootstrap-ubuntu.sh
+# bootstrap-macos.sh
 
 set -euo pipefail
 
@@ -20,21 +20,48 @@ print_section() {
 
 trap 'print_error "Script failed at line $LINENO"' ERR
 
-print_section "Starting Ubuntu Bootstrap Process"
+# Detect Homebrew prefix (Apple Silicon vs Intel)
+if [[ "$(uname -m)" == "arm64" ]]; then
+    BREW_PREFIX="/opt/homebrew"
+else
+    BREW_PREFIX="/usr/local"
+fi
 
-# ─── Step 1: Update packages ───────────────────────────────────────────
-print_section "Step 1: Updating Ubuntu Packages"
-sudo apt-get update
-sudo apt-get upgrade -y
-print_status "Ubuntu packages updated!"
+print_section "Starting macOS Bootstrap Process"
 
-# ─── Step 2: Install essentials ───────────────────────────────────────
-print_section "Step 2: Installing Essential Packages"
-sudo apt install -y curl git zip zsh
-print_status "Essential packages installed!"
+# ─── Step 1: Xcode Command Line Tools ─────────────────────────────────
+print_section "Step 1: Xcode Command Line Tools"
+if ! xcode-select -p &>/dev/null; then
+    print_status "Installing Xcode Command Line Tools..."
+    print_warning "A dialog will appear — click Install, then re-run this script."
+    xcode-select --install
+    exit 0
+else
+    print_warning "Xcode CLT already installed, skipping..."
+fi
 
-# ─── Step 3: Oh-My-Zsh ────────────────────────────────────────────────
-print_section "Step 3: Installing Oh-My-Zsh"
+# ─── Step 2: Homebrew ──────────────────────────────────────────────────
+print_section "Step 2: Homebrew"
+if ! command -v brew &>/dev/null; then
+    print_status "Installing Homebrew..."
+    NONINTERACTIVE=1 /bin/bash -c \
+        "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    eval "$("$BREW_PREFIX/bin/brew" shellenv)"
+    print_status "Homebrew installed!"
+else
+    print_warning "Homebrew already installed, updating..."
+    brew update
+fi
+
+# ─── Step 3: Core packages ─────────────────────────────────────────────
+print_section "Step 3: Installing Packages via Homebrew"
+brew install git curl zsh
+brew install atuin
+brew install jandedobbeleer/oh-my-posh/oh-my-posh
+print_status "Packages installed!"
+
+# ─── Step 4: Oh-My-Zsh ────────────────────────────────────────────────
+print_section "Step 4: Installing Oh-My-Zsh"
 if [[ ! -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]]; then
     # Remove any incomplete/partial install before retrying
     [[ -d "$HOME/.oh-my-zsh" ]] && rm -rf "$HOME/.oh-my-zsh"
@@ -46,8 +73,8 @@ else
     print_warning "Oh-My-Zsh already installed, skipping..."
 fi
 
-# ─── Step 4: ZSH plugins ──────────────────────────────────────────────
-print_section "Step 4: Installing ZSH Plugins"
+# ─── Step 5: ZSH plugins ──────────────────────────────────────────────
+print_section "Step 5: Installing ZSH Plugins"
 ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
 
 if [[ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]]; then
@@ -68,16 +95,8 @@ else
     print_warning "fast-syntax-highlighting already installed, skipping..."
 fi
 
-# ─── Step 5: Atuin ────────────────────────────────────────────────────
-print_section "Step 5: Installing Atuin"
-if ! command -v atuin &>/dev/null && [[ ! -f "$HOME/.atuin/bin/atuin" ]]; then
-    print_status "Installing Atuin..."
-    curl --proto '=https' --tlsv1.2 -LsSf https://setup.atuin.sh | sh
-    print_status "Atuin installed!"
-else
-    print_warning "Atuin already installed, skipping..."
-fi
-
+# ─── Step 6: Atuin config ─────────────────────────────────────────────
+print_section "Step 6: Configuring Atuin"
 ATUIN_CONFIG="$HOME/.config/atuin/config.toml"
 if [[ ! -f "$ATUIN_CONFIG" ]]; then
     mkdir -p "$(dirname "$ATUIN_CONFIG")"
@@ -85,17 +104,6 @@ if [[ ! -f "$ATUIN_CONFIG" ]]; then
     print_status "Atuin config created."
 else
     print_warning "Atuin config already exists, skipping..."
-fi
-
-# ─── Step 6: Oh-My-Posh ───────────────────────────────────────────────
-print_section "Step 6: Installing Oh-My-Posh"
-if ! command -v oh-my-posh &>/dev/null; then
-    print_status "Installing Oh-My-Posh to ~/.local/bin..."
-    mkdir -p ~/.local/bin
-    curl -fsSL https://ohmyposh.dev/install.sh | bash -s -- -d ~/.local/bin
-    print_status "Oh-My-Posh installed!"
-else
-    print_warning "Oh-My-Posh already installed, skipping..."
 fi
 
 # ─── Step 7: Oh-My-Posh theme ─────────────────────────────────────────
@@ -119,11 +127,13 @@ print_status ".zshrc downloaded!"
 
 # ─── Step 9: Default shell ─────────────────────────────────────────────
 print_section "Step 9: Setting ZSH as Default Shell"
-ZSH_PATH="$(which zsh)"
-print_status "Current shell: $SHELL"
+ZSH_PATH="$(brew --prefix)/bin/zsh"
 
 if [[ "$SHELL" != "$ZSH_PATH" ]]; then
-    print_status "Changing default shell to $ZSH_PATH..."
+    if ! grep -qF "$ZSH_PATH" /etc/shells; then
+        print_status "Adding $ZSH_PATH to /etc/shells..."
+        echo "$ZSH_PATH" | sudo tee -a /etc/shells > /dev/null
+    fi
     chsh -s "$ZSH_PATH"
     print_status "Default shell set to $ZSH_PATH"
 else
@@ -133,7 +143,8 @@ fi
 # ─── Step 10: Summary ─────────────────────────────────────────────────
 print_section "Bootstrap Complete!"
 echo -e "${GREEN}Successfully installed:${NC}"
-echo "  ✓ ZSH and essential packages"
+echo "  ✓ Homebrew"
+echo "  ✓ Git, curl, zsh"
 echo "  ✓ Oh-My-Zsh + plugins"
 echo "  ✓ Atuin"
 echo "  ✓ Oh-My-Posh + quick-term theme"
@@ -145,7 +156,8 @@ echo -e "  2. Restart terminal or run: ${BLUE}exec zsh${NC}"
 echo ""
 
 print_status "Verifying installations..."
-echo -n "  Oh-My-Zsh:   "; [[ -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]] && echo "✓" || echo "✗"
+echo -n "  Homebrew:    "; command -v brew        &>/dev/null && echo "✓" || echo "✗"
+echo -n "  Oh-My-Zsh:   "; [[ -d "$HOME/.oh-my-zsh" ]]      && echo "✓" || echo "✗"
 echo -n "  Atuin:       "; command -v atuin       &>/dev/null && echo "✓" || echo "✗"
 echo -n "  Oh-My-Posh:  "; command -v oh-my-posh  &>/dev/null && echo "✓" || echo "✗"
 echo -n "  Theme:       "; [[ -f "$HOME/.quick-term.omp.json" ]] && echo "✓" || echo "✗"
