@@ -11,12 +11,12 @@ Standardising terminal for any new Terminal host.
 
 ## Notes
 ### Compatibility 🤖
-- Made for MacOS & AMD64 Linux Hosts. Atuin & Oh-My-Posh should now support ARM64
-- Tested on Apple M1/M4 MacOS ARM devices & Ubuntu Server 24.04 on x86/AMD64 & ARM64
+- Supports macOS (Apple Silicon & Intel) and Linux (x86/AMD64 & ARM64)
+- Tested on Apple M1/M4 macOS and Ubuntu Server 24.04 on x86/AMD64 & ARM64
 
 ### Pre-requisites ✅
-- Install `Menslo Nerd Fonts` to your local host to render icons / fonts. Not required for remote hosts.
-- Steps below rely on a Local `Atuin` Server installed. If you do not have `atuin` installed.
+- Install `Meslo Nerd Font` on your local host to render icons and glyphs correctly. Not required for remote hosts.
+- Steps below assume a local `Atuin` server is available. If you don't have one, remove or skip the Atuin steps.
 
 ### Long-term goals 🎯
 - Streamline it. Reduce the steps & commands.
@@ -24,10 +24,12 @@ Standardising terminal for any new Terminal host.
 
 # Installation
 ## Script Install
-1. Review the contents of `https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/bootstrap_ubuntu.sh` before you run #2
-2. Run the installer for the system required:
-   * **Ubuntu** Run `sudo -v && curl -fsSL https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/bootstrap_ubuntu.sh | bash`
-   * **MacOS** Run `sudo -v && curl -fsSL https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/bootstrap_macos.sh | bash`
-4. Run `curl -fsSL -o ~/.zshrc https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/.zshrc && exec zsh` to pull the latest .zshrc file
+1. Review the bootstrap script for your platform before running:
+   * **Ubuntu** `https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/bootstrap_ubuntu.sh`
+   * **macOS** `https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/bootstrap_macos.sh`
+2. Run the installer for your platform:
+   * **Ubuntu** `sudo -v && curl -fsSL https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/bootstrap_ubuntu.sh | bash`
+   * **macOS** `sudo -v && curl -fsSL https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/bootstrap_macos.sh | bash`
+3. Pull the latest `.zshrc` and reload: `curl -fsSL -o ~/.zshrc https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/.zshrc && exec zsh`
 
 <img width="494" height="383" alt="image" src="https://github.com/user-attachments/assets/85637e79-b464-4a24-8ce7-748605b0430c" />
