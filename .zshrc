@@ -10,6 +10,8 @@ if [[ -x /opt/homebrew/bin/brew ]]; then
     eval "$(/opt/homebrew/bin/brew shellenv)"
 elif [[ -x /usr/local/bin/brew ]]; then
     eval "$(/usr/local/bin/brew shellenv)"
+elif [[ -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 fi
 
 # ─── PATH (set once, deduped) ──────────────────────────────────────────
@@ -31,8 +33,18 @@ source "$ZSH/oh-my-zsh.sh"
 
 # ─── Source plugins directly (skips OMZ plugin-loader overhead) ────────
 _omz_custom="${ZSH_CUSTOM:-$ZSH/custom}/plugins"
-[[ -f "$_omz_custom/zsh-autosuggestions/zsh-autosuggestions.zsh" ]] \
-    && source "$_omz_custom/zsh-autosuggestions/zsh-autosuggestions.zsh"
+
+# zsh-autosuggestions: prefer OMZ custom install, fall back to Homebrew or apt
+if [[ -f "$_omz_custom/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; then
+    source "$_omz_custom/zsh-autosuggestions/zsh-autosuggestions.zsh"
+elif [[ -f "/opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; then
+    source "/opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
+elif [[ -f "/home/linuxbrew/.linuxbrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; then
+    source "/home/linuxbrew/.linuxbrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
+elif [[ -f "/usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; then
+    source "/usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
+fi
+
 # fast-syntax-highlighting must load AFTER anything else that touches ZLE
 [[ -f "$_omz_custom/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh" ]] \
     && source "$_omz_custom/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh"
@@ -89,32 +101,34 @@ fi
 [[ -e "${HOME}/.iterm2_shell_integration.zsh" ]] \
     && source "${HOME}/.iterm2_shell_integration.zsh"
 
-# ─── iTerm profile switching for agent CLIs ────────────────────────────
-_iterm_profile() { printf '\033]1337;SetProfile=%s\007' "$1"; }
-_iterm_active=""
-
-_iterm_precmd_restore() {
-    [[ -n $_iterm_active ]] || return
-    _iterm_profile Default
+# ─── iTerm profile switching for agent CLIs (macOS/iTerm2 only) ────────
+if [[ "$TERM_PROGRAM" == "iTerm.app" ]]; then
+    _iterm_profile() { printf '\033]1337;SetProfile=%s\007' "$1"; }
     _iterm_active=""
-}
 
-autoload -Uz add-zsh-hook
-add-zsh-hook precmd _iterm_precmd_restore
+    _iterm_precmd_restore() {
+        [[ -n $_iterm_active ]] || return
+        _iterm_profile Default
+        _iterm_active=""
+    }
 
-_iterm_run() {
-    local p=$1 c=$2; shift 2
-    _iterm_active=$p
-    _iterm_profile "$p"
-    command "$c" "$@"
-    local rc=$?
-    _iterm_precmd_restore
-    return $rc
-}
+    autoload -Uz add-zsh-hook
+    add-zsh-hook precmd _iterm_precmd_restore
 
-claude()  { _iterm_run agent-claude  claude  "$@"; }
-codex()   { _iterm_run agent-codex   codex   "$@"; }
-gemini()  { _iterm_run agent-gemini  gemini  "$@"; }
-copilot() { _iterm_run agent-copilot copilot "$@"; }
+    _iterm_run() {
+        local p=$1 c=$2; shift 2
+        _iterm_active=$p
+        _iterm_profile "$p"
+        command "$c" "$@"
+        local rc=$?
+        _iterm_precmd_restore
+        return $rc
+    }
+
+    claude()  { _iterm_run agent-claude  claude  "$@"; }
+    codex()   { _iterm_run agent-codex   codex   "$@"; }
+    gemini()  { _iterm_run agent-gemini  gemini  "$@"; }
+    copilot() { _iterm_run agent-copilot copilot "$@"; }
+fi
 
 # zprof
