@@ -2,12 +2,11 @@
 
 Standardising terminal for any new Terminal host.
 
-<img width="555" alt="image" src="https://github.com/user-attachments/assets/12dd4986-9925-4a76-9488-0e48c90223ed" />
-
 * 🐚 Uses zsh as default shell
-* 🔌 Oh-my-zsh for plugins
+* 🔌 Oh-my-zsh for plugins (fast-syntax-highlighting & zsh-autosuggestions)
 * 🎨 Oh-my-posh for themes
 * 📚 Atuin for Shell history
+* 🎨 iTerm 2 Profile switching (MacOS only)
 
 ## Notes
 ### Compatibility 🤖
@@ -19,8 +18,8 @@ Standardising terminal for any new Terminal host.
 - Steps below assume a local `Atuin` server is available. If you don't have one, remove or skip the Atuin steps.
 
 ### Long-term goals 🎯
-- Streamline it. Reduce the steps & commands.
-- Speed up the `terminal` load times.
+- [x] Streamline it. Reduce the steps & commands.
+- [x] Speed up the `terminal` load times.
 
 # Installation
 ## Script Install
@@ -30,6 +29,9 @@ Standardising terminal for any new Terminal host.
 2. Run the installer for your platform:
    * **Ubuntu** `sudo -v && curl -fsSL https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/bootstrap_ubuntu.sh | bash`
    * **macOS** `sudo -v && curl -fsSL https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/bootstrap_macos.sh | bash`
-3. Pull the latest `.zshrc` and reload: `curl -fsSL -o ~/.zshrc https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/.zshrc && exec zsh`
 
-<img width="494" height="383" alt="image" src="https://github.com/user-attachments/assets/85637e79-b464-4a24-8ce7-748605b0430c" />
+## Updates to .zshrc
+To pull the latest `.zshrc` and reload: `curl -fsSL -o ~/.zshrc https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/.zshrc && exec zsh`
+
+<img width="387" height="502" alt="image" src="https://github.com/user-attachments/assets/1cd1ba33-9c91-43b9-9b2d-3fe78d1e4f79" />
+
