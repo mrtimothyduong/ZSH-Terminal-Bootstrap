@@ -35,7 +35,15 @@ print_status "Essential packages installed!"
 
 # ─── Step 3: Oh-My-Zsh ────────────────────────────────────────────────
 print_section "Step 3: Installing Oh-My-Zsh"
-if [[ ! -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]]; then
+OMZ_HEALTHY=false
+if [[ -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]] \
+    && [[ -f "$HOME/.oh-my-zsh/lib/compfix.zsh" ]] \
+    && [[ -f "$HOME/.oh-my-zsh/tools/check_for_upgrade.sh" ]] \
+    && [[ -d "$HOME/.oh-my-zsh/plugins/git" ]]; then
+    OMZ_HEALTHY=true
+fi
+
+if [[ "$OMZ_HEALTHY" == false ]]; then
     # Remove any incomplete/partial install before retrying
     [[ -d "$HOME/.oh-my-zsh" ]] && rm -rf "$HOME/.oh-my-zsh"
     print_status "Installing Oh-My-Zsh..."
