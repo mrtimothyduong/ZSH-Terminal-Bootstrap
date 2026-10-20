@@ -27,7 +27,9 @@ export PATH
 
 # ─── OH-MY-ZSH ─────────────────────────────────────────────────────────
 export ZSH="$HOME/.oh-my-zsh"
-export UPDATE_ZSH_DAYS=30
+ZSH_THEME=""                              # prompt comes from oh-my-posh below
+zstyle ':omz:update' mode reminder        # never block startup on an update prompt
+zstyle ':omz:update' frequency 30
 plugins=(git)
 source "$ZSH/oh-my-zsh.sh"
 
@@ -54,16 +56,20 @@ unset _omz_custom
 _cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
 [[ -d "$_cache_dir" ]] || mkdir -p "$_cache_dir"
 
+# Usage: _load_cached <name> [--dep <file>]... <command...>
+# The cache is rebuilt when missing, older than 7 days, or older than any --dep file.
 _load_cached() {
     emulate -L zsh
     local name="$1"; shift
-    local dep=""
-    if [[ "$1" == "--dep" ]]; then dep="$2"; shift 2; fi
+    local -a deps
+    while [[ "$1" == "--dep" ]]; do deps+=("$2"); shift 2; done
     local cache="$_cache_dir/$name.zsh"
     local errlog="$cache.err"
-    local stale=0
+    local stale=0 d
     [[ ! -s "$cache" ]] && stale=1
-    [[ -n "$dep" && -f "$dep" && "$dep" -nt "$cache" ]] && stale=1
+    for d in $deps; do
+        [[ -n "$d" && -e "$d" && "$d" -nt "$cache" ]] && stale=1
+    done
     [[ -n "$(find "$cache" -mtime +7 2>/dev/null)" ]] && stale=1
     if (( stale )); then
         if ! "$@" >"$cache" 2>"$errlog" || [[ ! -s "$cache" ]]; then
@@ -80,10 +86,11 @@ zsh-cache-clear() {
     print "Cleared zsh cache in $_cache_dir. Run 'exec zsh' to reload."
 }
 
-command -v atuin &>/dev/null && _load_cached atuin atuin init zsh
+# Depending on the binary itself means an upgrade regenerates the cache immediately.
+(( $+commands[atuin] )) && _load_cached atuin --dep "$commands[atuin]" atuin init zsh
 
-if [[ -f ~/.quick-term.omp.json ]] && command -v oh-my-posh &>/dev/null; then
-    _load_cached omp --dep ~/.quick-term.omp.json \
+if [[ -f ~/.quick-term.omp.json ]] && (( $+commands[oh-my-posh] )); then
+    _load_cached omp --dep ~/.quick-term.omp.json --dep "$commands[oh-my-posh]" \
         oh-my-posh init zsh --config ~/.quick-term.omp.json
 else
     PS1='%n@%m:%~$ '
@@ -100,9 +107,3 @@ fi
 # ─── iTerm2 integration ────────────────────────────────────────────────
 [[ -e "${HOME}/.iterm2_shell_integration.zsh" ]] \
     && source "${HOME}/.iterm2_shell_integration.zsh"
-
-# zprof
-# source /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-
-# Added by cua-driver-rs installer — see https://github.com/trycua/cua
-export PATH="/Users/timothyduong/.local/bin:$PATH"
