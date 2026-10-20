@@ -20,34 +20,58 @@ print_section() {
 
 trap 'print_error "Script failed at line $LINENO"' ERR
 
+# Download to a temp file, then move into place, so a failed download
+# never leaves a truncated file behind.
+download() {
+    local url="$1" dest="$2" tmp
+    tmp="$(mktemp)"
+    if ! curl -fsSL -o "$tmp" "$url"; then
+        rm -f "$tmp"
+        print_error "Download failed: $url"
+        return 1
+    fi
+    mv "$tmp" "$dest"
+}
+
+# Atuin and Oh-My-Posh install into these directories. Put them on PATH
+# now so the "already installed" checks and final verification find them.
+export PATH="$HOME/.local/bin:$HOME/.atuin/bin:$PATH"
+
+REPO_RAW="https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main"
+
 print_section "Starting Ubuntu Bootstrap Process"
 
 # ─── Step 1: Update packages ───────────────────────────────────────────
 print_section "Step 1: Updating Ubuntu Packages"
 sudo apt-get update
-sudo apt-get upgrade -y
+sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 print_status "Ubuntu packages updated!"
 
 # ─── Step 2: Install essentials ───────────────────────────────────────
 print_section "Step 2: Installing Essential Packages"
-sudo apt install -y curl git zip zsh
+# unzip is required by the Oh-My-Posh installer
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y curl git zip unzip zsh
 print_status "Essential packages installed!"
 
 # ─── Step 3: Oh-My-Zsh ────────────────────────────────────────────────
 print_section "Step 3: Installing Oh-My-Zsh"
-OMZ_HEALTHY=false
-if [[ -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]] \
-    && [[ -f "$HOME/.oh-my-zsh/lib/compfix.zsh" ]] \
-    && [[ -f "$HOME/.oh-my-zsh/tools/check_for_upgrade.sh" ]] \
-    && [[ -d "$HOME/.oh-my-zsh/plugins/git" ]]; then
-    OMZ_HEALTHY=true
-fi
+omz_healthy() {
+    [[ -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]] \
+        && [[ -f "$HOME/.oh-my-zsh/lib/compfix.zsh" ]] \
+        && [[ -f "$HOME/.oh-my-zsh/tools/check_for_upgrade.sh" ]] \
+        && [[ -d "$HOME/.oh-my-zsh/plugins/git" ]]
+}
 
-if [[ "$OMZ_HEALTHY" == false ]]; then
-    # Remove any incomplete/partial install before retrying
-    [[ -d "$HOME/.oh-my-zsh" ]] && rm -rf "$HOME/.oh-my-zsh"
+if ! omz_healthy; then
+    # Move any incomplete/partial install aside rather than deleting it,
+    # so anything in custom/ can be recovered.
+    if [[ -d "$HOME/.oh-my-zsh" ]]; then
+        OMZ_BAK="$HOME/.oh-my-zsh.broken.$(date +%Y%m%d_%H%M%S)"
+        mv "$HOME/.oh-my-zsh" "$OMZ_BAK"
+        print_warning "Moved broken install to $OMZ_BAK"
+    fi
     print_status "Installing Oh-My-Zsh..."
-    RUNZSH=no CHSH=no \
+    RUNZSH=no CHSH=no KEEP_ZSHRC=yes \
         sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
     print_status "Oh-My-Zsh installed!"
 else
@@ -78,7 +102,7 @@ fi
 
 # ─── Step 5: Atuin ────────────────────────────────────────────────────
 print_section "Step 5: Installing Atuin"
-if ! command -v atuin &>/dev/null && [[ ! -f "$HOME/.atuin/bin/atuin" ]]; then
+if ! command -v atuin &>/dev/null; then
     print_status "Installing Atuin..."
     curl --proto '=https' --tlsv1.2 -LsSf https://setup.atuin.sh | sh
     print_status "Atuin installed!"
@@ -99,8 +123,8 @@ fi
 print_section "Step 6: Installing Oh-My-Posh"
 if ! command -v oh-my-posh &>/dev/null; then
     print_status "Installing Oh-My-Posh to ~/.local/bin..."
-    mkdir -p ~/.local/bin
-    curl -fsSL https://ohmyposh.dev/install.sh | bash -s -- -d ~/.local/bin
+    mkdir -p "$HOME/.local/bin"
+    curl -fsSL https://ohmyposh.dev/install.sh | bash -s -- -d "$HOME/.local/bin"
     print_status "Oh-My-Posh installed!"
 else
     print_warning "Oh-My-Posh already installed, skipping..."
@@ -108,31 +132,35 @@ fi
 
 # ─── Step 7: Oh-My-Posh theme ─────────────────────────────────────────
 print_section "Step 7: Downloading Oh-My-Posh Theme"
-curl -fsSL -o ~/.quick-term.omp.json \
-    https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/.quick-term.omp.json
+download "$REPO_RAW/.quick-term.omp.json" "$HOME/.quick-term.omp.json"
 print_status "Theme downloaded!"
 
 # ─── Step 8: .zshrc ───────────────────────────────────────────────────
+# Runs after the Atuin installer on purpose: that installer appends its
+# own init lines to shell rc files, which this download replaces.
 print_section "Step 8: Configuring .zshrc"
-if [[ -f ~/.zshrc ]]; then
+if [[ -f "$HOME/.zshrc" ]]; then
     BACKUP="$HOME/.zshrc.backup.$(date +%Y%m%d_%H%M%S)"
-    cp ~/.zshrc "$BACKUP"
+    cp "$HOME/.zshrc" "$BACKUP"
     print_status "Backup created: $BACKUP"
 fi
 
 print_status "Downloading .zshrc from GitHub..."
-curl -fsSL -o ~/.zshrc \
-    https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/.zshrc
+download "$REPO_RAW/.zshrc" "$HOME/.zshrc"
 print_status ".zshrc downloaded!"
 
 # ─── Step 9: Default shell ─────────────────────────────────────────────
 print_section "Step 9: Setting ZSH as Default Shell"
-ZSH_PATH="$(which zsh)"
-print_status "Current shell: $SHELL"
+ZSH_PATH="$(command -v zsh)"
+# $SHELL only updates at next login, so read the account's real shell.
+login_shell() { getent passwd "$USER" | cut -d: -f7; }
+CURRENT_SHELL="$(login_shell)"
+print_status "Current login shell: $CURRENT_SHELL"
 
-if [[ "$SHELL" != "$ZSH_PATH" ]]; then
+if [[ "$CURRENT_SHELL" != "$ZSH_PATH" ]]; then
     print_status "Changing default shell to $ZSH_PATH..."
-    chsh -s "$ZSH_PATH"
+    # sudo is already cached from Step 1, so this avoids a second password prompt
+    sudo chsh -s "$ZSH_PATH" "$USER"
     print_status "Default shell set to $ZSH_PATH"
 else
     print_warning "ZSH ($ZSH_PATH) is already the default shell"
@@ -149,13 +177,16 @@ echo ""
 echo -e "${YELLOW}IMPORTANT — Manual Steps:${NC}"
 echo -e "  1. Login to Atuin: ${BLUE}atuin login -u $(whoami)${NC}"
 echo    "     (password in 1Password)"
-echo -e "  2. Restart terminal or run: ${BLUE}exec zsh${NC}"
+echo -e "  2. Log out and back in (or run ${BLUE}exec zsh${NC})"
 echo ""
 
 print_status "Verifying installations..."
-echo -n "  Oh-My-Zsh:   "; [[ -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]] && echo "✓" || echo "✗"
-echo -n "  Atuin:       "; command -v atuin       &>/dev/null && echo "✓" || echo "✗"
-echo -n "  Oh-My-Posh:  "; command -v oh-my-posh  &>/dev/null && echo "✓" || echo "✗"
-echo -n "  Theme:       "; [[ -f "$HOME/.quick-term.omp.json" ]] && echo "✓" || echo "✗"
+check() { if "$@" &>/dev/null; then echo "✓"; else echo "✗"; fi; }
+echo -n "  Oh-My-Zsh:   "; check omz_healthy
+echo -n "  Plugins:     "; check test -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" -a -d "$ZSH_CUSTOM/plugins/fast-syntax-highlighting"
+echo -n "  Atuin:       "; check command -v atuin
+echo -n "  Oh-My-Posh:  "; check command -v oh-my-posh
+echo -n "  Theme:       "; check test -f "$HOME/.quick-term.omp.json"
+echo -n "  Shell:       "; check test "$(login_shell)" = "$ZSH_PATH"
 
 print_section "Done!"
