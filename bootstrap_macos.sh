@@ -20,12 +20,27 @@ print_section() {
 
 trap 'print_error "Script failed at line $LINENO"' ERR
 
+# Download to a temp file, then move into place, so a failed download
+# never leaves a truncated file behind.
+download() {
+    local url="$1" dest="$2" tmp
+    tmp="$(mktemp)"
+    if ! curl -fsSL -o "$tmp" "$url"; then
+        rm -f "$tmp"
+        print_error "Download failed: $url"
+        return 1
+    fi
+    mv "$tmp" "$dest"
+}
+
 # Detect Homebrew prefix (Apple Silicon vs Intel)
 if [[ "$(uname -m)" == "arm64" ]]; then
     BREW_PREFIX="/opt/homebrew"
 else
     BREW_PREFIX="/usr/local"
 fi
+
+REPO_RAW="https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main"
 
 print_section "Starting macOS Bootstrap Process"
 
@@ -42,16 +57,16 @@ fi
 
 # ─── Step 2: Homebrew ──────────────────────────────────────────────────
 print_section "Step 2: Homebrew"
-if ! command -v brew &>/dev/null; then
+if [[ ! -x "$BREW_PREFIX/bin/brew" ]]; then
     print_status "Installing Homebrew..."
     NONINTERACTIVE=1 /bin/bash -c \
         "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    eval "$("$BREW_PREFIX/bin/brew" shellenv)"
     print_status "Homebrew installed!"
 else
     print_warning "Homebrew already installed, updating..."
-    brew update
 fi
+eval "$("$BREW_PREFIX/bin/brew" shellenv)"
+brew update
 
 # ─── Step 3: Core packages ─────────────────────────────────────────────
 print_section "Step 3: Installing Packages via Homebrew"
@@ -62,19 +77,23 @@ print_status "Packages installed!"
 
 # ─── Step 4: Oh-My-Zsh ────────────────────────────────────────────────
 print_section "Step 4: Installing Oh-My-Zsh"
-OMZ_HEALTHY=false
-if [[ -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]] \
-    && [[ -f "$HOME/.oh-my-zsh/lib/compfix.zsh" ]] \
-    && [[ -f "$HOME/.oh-my-zsh/tools/check_for_upgrade.sh" ]] \
-    && [[ -d "$HOME/.oh-my-zsh/plugins/git" ]]; then
-    OMZ_HEALTHY=true
-fi
+omz_healthy() {
+    [[ -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]] \
+        && [[ -f "$HOME/.oh-my-zsh/lib/compfix.zsh" ]] \
+        && [[ -f "$HOME/.oh-my-zsh/tools/check_for_upgrade.sh" ]] \
+        && [[ -d "$HOME/.oh-my-zsh/plugins/git" ]]
+}
 
-if [[ "$OMZ_HEALTHY" == false ]]; then
-    # Remove any incomplete/partial install before retrying
-    [[ -d "$HOME/.oh-my-zsh" ]] && rm -rf "$HOME/.oh-my-zsh"
+if ! omz_healthy; then
+    # Move any incomplete/partial install aside rather than deleting it,
+    # so anything in custom/ can be recovered.
+    if [[ -d "$HOME/.oh-my-zsh" ]]; then
+        OMZ_BAK="$HOME/.oh-my-zsh.broken.$(date +%Y%m%d_%H%M%S)"
+        mv "$HOME/.oh-my-zsh" "$OMZ_BAK"
+        print_warning "Moved broken install to $OMZ_BAK"
+    fi
     print_status "Installing Oh-My-Zsh..."
-    RUNZSH=no CHSH=no \
+    RUNZSH=no CHSH=no KEEP_ZSHRC=yes \
         sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
     print_status "Oh-My-Zsh installed!"
 else
@@ -116,29 +135,29 @@ fi
 
 # ─── Step 7: Oh-My-Posh theme ─────────────────────────────────────────
 print_section "Step 7: Downloading Oh-My-Posh Theme"
-curl -fsSL -o ~/.quick-term.omp.json \
-    https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/.quick-term.omp.json
+download "$REPO_RAW/.quick-term.omp.json" "$HOME/.quick-term.omp.json"
 print_status "Theme downloaded!"
 
 # ─── Step 8: .zshrc ───────────────────────────────────────────────────
 print_section "Step 8: Configuring .zshrc"
-if [[ -f ~/.zshrc ]]; then
+if [[ -f "$HOME/.zshrc" ]]; then
     BACKUP="$HOME/.zshrc.backup.$(date +%Y%m%d_%H%M%S)"
-    cp ~/.zshrc "$BACKUP"
+    cp "$HOME/.zshrc" "$BACKUP"
     print_status "Backup created: $BACKUP"
 fi
 
 print_status "Downloading .zshrc from GitHub..."
-curl -fsSL -o ~/.zshrc \
-    https://raw.githubusercontent.com/mrtimothyduong/ZSH-Terminal-Bootstrap/refs/heads/main/.zshrc
+download "$REPO_RAW/.zshrc" "$HOME/.zshrc"
 print_status ".zshrc downloaded!"
 
 # ─── Step 9: Default shell ─────────────────────────────────────────────
 print_section "Step 9: Setting ZSH as Default Shell"
 ZSH_PATH="$(brew --prefix)/bin/zsh"
+# $SHELL only updates at next login, so read the account's real shell.
+CURRENT_SHELL="$(dscl . -read ~/ UserShell | awk '{print $2}')"
 
-if [[ "$SHELL" != "$ZSH_PATH" ]]; then
-    if ! grep -qF "$ZSH_PATH" /etc/shells; then
+if [[ "$CURRENT_SHELL" != "$ZSH_PATH" ]]; then
+    if ! grep -qxF "$ZSH_PATH" /etc/shells; then
         print_status "Adding $ZSH_PATH to /etc/shells..."
         echo "$ZSH_PATH" | sudo tee -a /etc/shells > /dev/null
     fi
@@ -164,10 +183,13 @@ echo -e "  2. Restart terminal or run: ${BLUE}exec zsh${NC}"
 echo ""
 
 print_status "Verifying installations..."
-echo -n "  Homebrew:    "; command -v brew        &>/dev/null && echo "✓" || echo "✗"
-echo -n "  Oh-My-Zsh:   "; [[ -d "$HOME/.oh-my-zsh" ]]      && echo "✓" || echo "✗"
-echo -n "  Atuin:       "; command -v atuin       &>/dev/null && echo "✓" || echo "✗"
-echo -n "  Oh-My-Posh:  "; command -v oh-my-posh  &>/dev/null && echo "✓" || echo "✗"
-echo -n "  Theme:       "; [[ -f "$HOME/.quick-term.omp.json" ]] && echo "✓" || echo "✗"
+check() { if "$@" &>/dev/null; then echo "✓"; else echo "✗"; fi; }
+echo -n "  Homebrew:    "; check command -v brew
+echo -n "  Oh-My-Zsh:   "; check omz_healthy
+echo -n "  Plugins:     "; check test -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" -a -d "$ZSH_CUSTOM/plugins/fast-syntax-highlighting"
+echo -n "  Atuin:       "; check command -v atuin
+echo -n "  Oh-My-Posh:  "; check command -v oh-my-posh
+echo -n "  Theme:       "; check test -f "$HOME/.quick-term.omp.json"
+echo -n "  Shell:       "; check test "$(dscl . -read ~/ UserShell | awk '{print $2}')" = "$ZSH_PATH"
 
 print_section "Done!"
