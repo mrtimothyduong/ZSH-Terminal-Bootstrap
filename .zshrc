@@ -91,9 +91,9 @@ fi
 
 # ─── Compile zcompdump in background ───────────────────────────────────
 {
-    if [[ -s "$HOME/.zcompdump" && \
-          ( ! -s "$HOME/.zcompdump.zwc" || "$HOME/.zcompdump" -nt "$HOME/.zcompdump.zwc" ) ]]; then
-        zcompile "$HOME/.zcompdump"
+    if [[ -s "$ZSH_COMPDUMP" && \
+          ( ! -s "$ZSH_COMPDUMP.zwc" || "$ZSH_COMPDUMP" -nt "$ZSH_COMPDUMP.zwc" ) ]]; then
+        zcompile "$ZSH_COMPDUMP"
     fi
 } &!
 
@@ -101,34 +101,8 @@ fi
 [[ -e "${HOME}/.iterm2_shell_integration.zsh" ]] \
     && source "${HOME}/.iterm2_shell_integration.zsh"
 
-# ─── iTerm profile switching for agent CLIs (macOS/iTerm2 only) ────────
-if [[ "$TERM_PROGRAM" == "iTerm.app" ]]; then
-    _iterm_profile() { printf '\033]1337;SetProfile=%s\007' "$1"; }
-    _iterm_active=""
-
-    _iterm_precmd_restore() {
-        [[ -n $_iterm_active ]] || return
-        _iterm_profile Default
-        _iterm_active=""
-    }
-
-    autoload -Uz add-zsh-hook
-    add-zsh-hook precmd _iterm_precmd_restore
-
-    _iterm_run() {
-        local p=$1 c=$2; shift 2
-        _iterm_active=$p
-        _iterm_profile "$p"
-        command "$c" "$@"
-        local rc=$?
-        _iterm_precmd_restore
-        return $rc
-    }
-
-    claude()  { _iterm_run agent-claude  claude  "$@"; }
-    codex()   { _iterm_run agent-codex   codex   "$@"; }
-    gemini()  { _iterm_run agent-gemini  gemini  "$@"; }
-    copilot() { _iterm_run agent-copilot copilot "$@"; }
-fi
-
 # zprof
+# source /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
+# Added by cua-driver-rs installer — see https://github.com/trycua/cua
+export PATH="/Users/timothyduong/.local/bin:$PATH"
