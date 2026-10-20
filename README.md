@@ -6,7 +6,7 @@ Standardising terminal for any new Terminal host.
 * 🔌 Oh-my-zsh for plugins (fast-syntax-highlighting & zsh-autosuggestions)
 * 🎨 Oh-my-posh for themes
 * 📚 Atuin for Shell history
-* 🎨 iTerm 2 Profile switching (MacOS only)
+* ~~🎨 iTerm 2 Profile switching (MacOS only)~~
 
 ## Notes
 ### Compatibility 🤖
