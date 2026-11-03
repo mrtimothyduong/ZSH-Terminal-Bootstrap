@@ -1,7 +1,7 @@
 #!/bin/bash
 # bootstrap-macos.sh
 
-set -euo pipefail
+set -Eeuo pipefail   # -E: ERR trap also fires inside main()
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -32,6 +32,12 @@ download() {
     fi
     mv "$tmp" "$dest"
 }
+
+# Everything runs inside main(), called on the last line. When this script
+# is piped in (curl ... | bash), bash then has to read the whole file before
+# running anything, so a command that reads stdin (brew, go build, chsh)
+# can't swallow the rest of the script.
+main() {
 
 # Detect Homebrew prefix (Apple Silicon vs Intel)
 if [[ "$(uname -m)" == "arm64" ]]; then
@@ -72,7 +78,7 @@ brew update
 print_section "Step 3: Installing Packages via Homebrew"
 brew install git curl zsh
 brew install atuin
-brew install jandedobbeleer/oh-my-posh/oh-my-posh
+brew install --formula jandedobbeleer/oh-my-posh/oh-my-posh
 print_status "Packages installed!"
 
 # ─── Step 4: Oh-My-Zsh ────────────────────────────────────────────────
@@ -161,7 +167,9 @@ if [[ "$CURRENT_SHELL" != "$ZSH_PATH" ]]; then
         print_status "Adding $ZSH_PATH to /etc/shells..."
         echo "$ZSH_PATH" | sudo tee -a /etc/shells > /dev/null
     fi
-    chsh -s "$ZSH_PATH"
+    # sudo instead of a chsh password prompt: the prompt can read the piped
+    # script instead of your keyboard, and sudo is usually cached already.
+    sudo chsh -s "$ZSH_PATH" "$USER"
     print_status "Default shell set to $ZSH_PATH"
 else
     print_warning "ZSH ($ZSH_PATH) is already the default shell"
@@ -193,3 +201,6 @@ echo -n "  Theme:       "; check test -f "$HOME/.quick-term.omp.json"
 echo -n "  Shell:       "; check test "$(dscl . -read ~/ UserShell | awk '{print $2}')" = "$ZSH_PATH"
 
 print_section "Done!"
+}
+
+main "$@"
