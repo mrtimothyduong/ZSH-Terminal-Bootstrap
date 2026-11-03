@@ -1,7 +1,7 @@
 #!/bin/bash
 # bootstrap-ubuntu.sh
 
-set -euo pipefail
+set -Eeuo pipefail   # -E: ERR trap also fires inside main()
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -32,6 +32,12 @@ download() {
     fi
     mv "$tmp" "$dest"
 }
+
+# Everything runs inside main(), called on the last line. When this script
+# is piped in (curl ... | bash), bash then has to read the whole file before
+# running anything, so a command that reads stdin (brew, go build, chsh)
+# can't swallow the rest of the script.
+main() {
 
 # Atuin and Oh-My-Posh install into these directories. Put them on PATH
 # now so the "already installed" checks and final verification find them.
@@ -190,3 +196,6 @@ echo -n "  Theme:       "; check test -f "$HOME/.quick-term.omp.json"
 echo -n "  Shell:       "; check test "$(login_shell)" = "$ZSH_PATH"
 
 print_section "Done!"
+}
+
+main "$@"
